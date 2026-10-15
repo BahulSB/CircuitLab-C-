@@ -1,193 +1,215 @@
 #include "Utilities.hpp"
+#include "Wire.hpp"
+#include "Gate.hpp"
+#include "Circuits.hpp"
+
 #include <iostream>
 #include <vector>
 #include <string>
 
-namespace CircuitLab {
+void runGateSimulation(SignalQueue<std::string>& logger) {
+    std::cout << "\n--- Logic Gate Evaluation (Gate Module) ---\n"
+              << "Available Gates: AND, OR, NOT, NAND, NOR, XOR, XNOR\n"
+              << "Enter Gate Name (exact uppercase): ";
+    std::string gateName;
+    std::cin >> gateName;
 
-    const int OP_AND  = 1;
-    const int OP_OR   = 2;
-    const int OP_NOT  = 3;
-    const int OP_NAND = 4;
-    const int OP_NOR  = 5;
-    const int OP_XOR  = 6;
-    const int OP_XNOR = 7;
+    int in1 = 0, in2 = 0;
+    std::cout << "Input 1 (0 or 1): ";
+    std::cin >> in1;
 
-    class Gate {
-    public:
-        static int solve(int gateType, int x, int y = 0) {
-            switch (gateType) {
-                case OP_AND:  return (x & y);
-                case OP_OR:   return (x | y);
-                case OP_NOT:  return (x == 0 ? 1 : 0);
-                case OP_NAND: return !(x & y);
-                case OP_NOR:  return !(x | y);
-                case OP_XOR:  return (x ^ y);
-                case OP_XNOR: return !(x ^ y);
-                default:      return 0;
-            }
-        }
-    };
-
-    class FullAdder {
-    public:
-        static void compute(int a, int b, int cin, int& sum, int& cout) {
-            sum = (a ^ b) ^ cin;
-            cout = ((a ^ b) & cin) | (a & b);
-        }
-    };
-
-    class Multiplexer2to1 {
-    public:
-        static int route(int line0, int line1, int selectBit) {
-            if (selectBit == 0) return line0;
-            return line1;
-        }
-    };
-
-}
-
-void testSingleGate(SignalQueue<std::string>& logger) {
-    std::cout << "\nSelect Gate: 1.AND 2.OR 3.NOT 4.NAND 5.NOR 6.XOR 7.XNOR\nChoice: ";
-    int gateChoice;
-    if (!(std::cin >> gateChoice) || gateChoice < 1 || gateChoice > 7) {
-        std::cin.clear();
-        std::cin.ignore(1000, '\n');
-        std::cout << "Invalid gate choice.\n";
-        return;
+    bool hasSecond = (gateName != "NOT");
+    if (hasSecond) {
+        std::cout << "Input 2 (0 or 1): ";
+        std::cin >> in2;
     }
 
-    int p1 = 0, p2 = 0;
-    std::cout << "Pin 1 (0 or 1): ";
-    std::cin >> p1;
+    LogicGate gate(gateName, hasSecond ? 2 : 1, in1 != 0, in2 != 0);
+    bool out = gate.evaluate();
 
-    if (gateChoice != CircuitLab::OP_NOT) {
-        std::cout << "Pin 2 (0 or 1): ";
-        std::cin >> p2;
-    }
+    std::cout << ">> " << gate << "\n";
+    std::cout << ">> Output Result: " << (out ? 1 : 0) << "\n";
 
-    int res = CircuitLab::Gate::solve(gateChoice, p1, p2);
-    std::cout << "-> Evaluated Output: " << res << "\n";
-
-    std::string record = "GateTest [Type=" + std::to_string(gateChoice) +
-                         " In=(" + std::to_string(p1) + "," + std::to_string(p2) +
-                         ") Out=" + std::to_string(res) + "]";
-    logger.push(record);
+    std::string rec = "Gate [" + gateName + "] (" + std::to_string(in1) + 
+                      (hasSecond ? ", " + std::to_string(in2) : "") + 
+                      ") -> " + std::to_string(out ? 1 : 0);
+    logger.push(rec);
 }
 
-void testFullAdder(SignalQueue<std::string>& logger) {
-    int bitA, bitB, bitCin;
-    std::cout << "\nInput A: "; std::cin >> bitA;
-    std::cout << "Input B: "; std::cin >> bitB;
-    std::cout << "Input Cin: "; std::cin >> bitCin;
+void runFullAdderSimulation(SignalQueue<std::string>& logger) {
+    int a = 0, b = 0, cin = 0;
+    std::cout << "\n--- Full Adder Simulation (Circuits Module) ---\n";
+    std::cout << "Input A   (0/1): "; std::cin >> a;
+    std::cout << "Input B   (0/1): "; std::cin >> b;
+    std::cout << "Input Cin (0/1): "; std::cin >> cin;
 
-    int sumRes = 0, coutRes = 0;
-    CircuitLab::FullAdder::compute(bitA, bitB, bitCin, sumRes, coutRes);
+    FullAdder fa;
+    fa.execute(a != 0, b != 0, cin != 0);
 
-    std::cout << "-> Sum = " << sumRes << ", Cout = " << coutRes << "\n";
+    bool sumOut = fa.getSum();
+    bool carryOut = fa.getCarry();
 
-    std::string record = "Adder [A=" + std::to_string(bitA) + " B=" + std::to_string(bitB) +
-                         " Cin=" + std::to_string(bitCin) + " | S=" + std::to_string(sumRes) +
-                         " C=" + std::to_string(coutRes) + "]";
-    logger.push(record);
+    std::cout << ">> Sum: " << sumOut << " | Carry: " << carryOut << "\n";
+    std::cout << "\n[Probing Internal Sub-Circuits]:\n";
+    Debugger::probeFullAdder(fa);
+
+    std::string rec = "FullAdder (A=" + std::to_string(a) + ", B=" + std::to_string(b) + 
+                      ", Cin=" + std::to_string(cin) + ") -> S=" + std::to_string(sumOut) + 
+                      ", Cout=" + std::to_string(carryOut);
+    logger.push(rec);
 }
 
-void testMux(SignalQueue<std::string>& logger) {
-    int d0, d1, sel;
-    std::cout << "\nInput D0: "; std::cin >> d0;
-    std::cout << "Input D1: "; std::cin >> d1;
-    std::cout << "Select line: "; std::cin >> sel;
+void runMuxSimulation(SignalQueue<std::string>& logger) {
+    int d0 = 0, d1 = 0, sel = 0;
+    std::cout << "\n--- 2-to-1 Multiplexer Simulation (Circuits Module) ---\n";
+    std::cout << "Input Line D0 (0/1): "; std::cin >> d0;
+    std::cout << "Input Line D1 (0/1): "; std::cin >> d1;
+    std::cout << "Select Line S (0/1): ";  std::cin >> sel;
 
-    int res = CircuitLab::Multiplexer2to1::route(d0, d1, sel);
-    std::cout << "-> Output Y = " << res << "\n";
+    Mux2to1 mux;
+    mux.execute(d0 != 0, d1 != 0, sel != 0);
+    bool out = mux.getOutput();
 
-    std::string record = "Mux21 [D0=" + std::to_string(d0) + " D1=" + std::to_string(d1) +
-                         " S=" + std::to_string(sel) + " | Y=" + std::to_string(res) + "]";
-    logger.push(record);
+    std::cout << ">> Selected Output (Y): " << out << "\n";
+
+    std::string rec = "Mux21 (D0=" + std::to_string(d0) + ", D1=" + std::to_string(d1) + 
+                      ", S=" + std::to_string(sel) + ") -> Y=" + std::to_string(out);
+    logger.push(rec);
+}
+
+void runWireDiagnostics() {
+    std::cout << "\n--- Wire Signal Propagation Test (Wire Module) ---\n";
+    Wire busA("DATA_BUS_0");
+    busA.addDestination("FullAdder.PinA");
+    busA.addDestination("Mux2to1.Line0");
+
+    std::cout << "Initial state:\n";
+    busA.printStatus();
+
+    std::cout << "\nDriving HIGH signal...\n";
+    busA.driveSignal(LogicState::HIGH);
+    busA.printStatus();
+
+    std::cout << "\nDriving LOW signal...\n";
+    busA.driveSignal(LogicState::LOW);
+    busA.printStatus();
+
+    std::cout << "\nInspection History Log:\n";
+    busA.printHistory();
+}
+
+void runBreadboardSimulation() {
+    std::cout << "\n--- Breadboard Dynamic Storage Test ---\n";
+    Breadboard bb(2);
+
+    FullAdder* fa1 = new FullAdder();
+    fa1->execute(true, true, true);
+    bb.addComponent(fa1);
+
+    Mux2to1* mux1 = new Mux2to1();
+    mux1->execute(true, false, true);
+    bb.addComponent(mux1);
+
+    std::cout << "Breadboard Components Count: " << bb.getCount() << "\n";
+    std::cout << "Breadboard Capacity: " << bb.getCapacity() << "\n";
+    std::cout << "Components safely mounted and verified in dynamic memory.\n";
 }
 
 void runTruthTableEngine() {
-    std::cout << "\nCircuits for Truth Table Generation:\n"
-              << " 1. AND Gate (2 in)\n"
-              << " 2. XOR Gate (2 in)\n"
-              << " 3. Full Adder (3 in -> 2 out)\n"
-              << " 4. 2:1 Mux (3 in -> 1 out)\n"
-              << "Select: ";
+    std::cout << "\n--- Automated Truth Table Synthesizer ---\n"
+              << " 1. 2-Input AND Gate (Gate Module)\n"
+              << " 2. 2-Input XOR Gate (Gate Module)\n"
+              << " 3. 1-Bit Full Adder (Circuits Module)\n"
+              << " 4. 2-to-1 Multiplexer (Circuits Module)\n"
+              << "Select Circuit (1-4): ";
 
-    int sel;
-    if (!(std::cin >> sel) || sel < 1 || sel > 4) {
+    int choice;
+    if (!(std::cin >> choice) || choice < 1 || choice > 4) {
         std::cin.clear();
         std::cin.ignore(1000, '\n');
-        std::cout << "Invalid choice.\n";
+        std::cout << "Invalid selection.\n";
         return;
     }
 
-    if (sel == 1) {
+    if (choice == 1) {
+        std::cout << "\nTruth Table: 2-Input AND Gate\n";
         TruthTableSynthesizer::render({"A", "B"}, {"AND"}, [](const std::vector<int>& in) {
-            return std::vector<int>{CircuitLab::Gate::solve(CircuitLab::OP_AND, in[0], in[1])};
+            LogicGate g("AND", 2, in[0] != 0, in[1] != 0);
+            return std::vector<int>{g.evaluate() ? 1 : 0};
         });
-    } else if (sel == 2) {
+    } else if (choice == 2) {
+        std::cout << "\nTruth Table: 2-Input XOR Gate\n";
         TruthTableSynthesizer::render({"A", "B"}, {"XOR"}, [](const std::vector<int>& in) {
-            return std::vector<int>{CircuitLab::Gate::solve(CircuitLab::OP_XOR, in[0], in[1])};
+            LogicGate g("XOR", 2, in[0] != 0, in[1] != 0);
+            return std::vector<int>{g.evaluate() ? 1 : 0};
         });
-    } else if (sel == 3) {
+    } else if (choice == 3) {
+        std::cout << "\nTruth Table: 1-Bit Full Adder (3 Inputs -> 2 Outputs)\n";
         TruthTableSynthesizer::render({"A", "B", "Cin"}, {"Sum", "Cout"}, [](const std::vector<int>& in) {
-            int s = 0, c = 0;
-            CircuitLab::FullAdder::compute(in[0], in[1], in[2], s, c);
-            return std::vector<int>{s, c};
+            FullAdder fa;
+            fa.execute(in[0] != 0, in[1] != 0, in[2] != 0);
+            return std::vector<int>{fa.getSum() ? 1 : 0, fa.getCarry() ? 1 : 0};
         });
-    } else if (sel == 4) {
+    } else if (choice == 4) {
+        std::cout << "\nTruth Table: 2-to-1 Multiplexer\n";
         TruthTableSynthesizer::render({"D0", "D1", "S"}, {"Y"}, [](const std::vector<int>& in) {
-            return std::vector<int>{CircuitLab::Multiplexer2to1::route(in[0], in[1], in[2])};
+            Mux2to1 mux;
+            mux.execute(in[0] != 0, in[1] != 0, in[2] != 0);
+            return std::vector<int>{mux.getOutput() ? 1 : 0};
         });
     }
 }
 
 int main() {
-    ComponentRegistry<std::string, std::string> deviceCatalog;
-    deviceCatalog.insert("GATE_AND", "Basic 2-Input AND Gate");
-    deviceCatalog.insert("GATE_XOR", "Basic 2-Input XOR Gate");
-    deviceCatalog.insert("CKT_ADDER", "1-Bit Full Adder Unit");
-    deviceCatalog.insert("CKT_MUX", "2-to-1 Multiplexer Unit");
+    ComponentRegistry<std::string, std::string> catalog;
+    catalog.insert("WIRE_CORE", "Signal line with state tracking & history buffer");
+    catalog.insert("GATE_LOGIC", "Primitive and compound logic gates with Signal class");
+    catalog.insert("CIRCUIT_FA", "Full Adder composite block with sub-half adders");
+    catalog.insert("CIRCUIT_MUX", "2:1 Multiplexer routing block");
+    catalog.insert("CONTAINER_BB", "Dynamic Breadboard memory storage (Rule of 3)");
 
-    SignalQueue<std::string> sessionLogger;
+    SignalQueue<std::string> sessionLog;
 
-    int userOption = 0;
+    int opt = 0;
     while (true) {
-        std::cout << "  Circuit Simulator Dashboard \n"
-                  << "Enter : \n1. Test Logic Gates\n"
-                  << "2. Simulate 1-Bit Full Adder\n"
-                  << "3. Simulate 2:1 Multiplexer\n"
-                  << "4. Generate Truth Tables\n"
-                  << "5. Show Log Buffer (SignalQueue)\n"
-                  << "6. View Component Catalog\n"
-                  << "7. Quit\n"
-                  << "Option (1-7): ";
+        std::cout << "  CircuitLab-C++: Master Simulation Console           \n"
+                  << " 1. Evaluate Logic Gate (Gate Module)\n"
+                  << " 2. Simulate 1-Bit Full Adder (Circuits Module)\n"
+                  << " 3. Simulate 2-to-1 Multiplexer (Circuits Module)\n"
+                  << " 4. Run Wire Signal Diagnostics (Wire Module)\n"
+                  << " 5. Test Dynamic Breadboard Container\n"
+                  << " 6. Synthesize Full Truth Tables\n"
+                  << " 7. Display Session Log (SignalQueue Buffer)\n"
+                  << " 8. View Component Catalog (ComponentRegistry)\n"
+                  << " 9. Exit\n"
+                  << "Enter selection (1-9): ";
 
-        if (!(std::cin >> userOption)) {
+        if (!(std::cin >> opt)) {
             std::cin.clear();
             std::cin.ignore(1000, '\n');
             continue;
         }
 
-        if (userOption == 1) {
-            testSingleGate(sessionLogger);
-        } else if (userOption == 2) {
-            testFullAdder(sessionLogger);
-        } else if (userOption == 3) {
-            testMux(sessionLogger);
-        } else if (userOption == 4) {
-            runTruthTableEngine();
-        } else if (userOption == 5) {
-            std::cout << "\nTotal logged operations: " << sessionLogger.count() << "\n";
-            sessionLogger.printQueue();
-        } else if (userOption == 6) {
-            deviceCatalog.showCatalog();
-        } else if (userOption == 7) {
-            std::cout << "Exiting simulation.\n";
-            break;
-        } else {
-            std::cout << "Invalid input option.\n";
+        switch (opt) {
+            case 1: runGateSimulation(sessionLog); break;
+            case 2: runFullAdderSimulation(sessionLog); break;
+            case 3: runMuxSimulation(sessionLog); break;
+            case 4: runWireDiagnostics(); break;
+            case 5: runBreadboardSimulation(); break;
+            case 6: runTruthTableEngine(); break;
+            case 7:
+                std::cout << "\n--- SignalQueue Log (" << sessionLog.count() << " events recorded) ---\n";
+                sessionLog.printQueue();
+                break;
+            case 8:
+                catalog.showCatalog();
+                break;
+            case 9:
+                std::cout << "Terminating CircuitLab-C++ simulation. Goodbye!\n";
+                return 0;
+            default:
+                std::cout << "Invalid choice. Select between 1 and 9.\n";
+                break;
         }
     }
 

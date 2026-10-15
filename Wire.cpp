@@ -175,7 +175,7 @@ void Wire::printHistory() const {
              << historyLog[i] << endl;
     }
 }
-
+#ifdef STANDALONE_TEST
 int main() {
     cout << "\n";
     cout << "          CircuitLab - Wire Test        " << endl;
@@ -224,3 +224,4 @@ int main() {
 
     return 0;
 }
+#endif

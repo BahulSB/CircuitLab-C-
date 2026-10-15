@@ -80,9 +80,9 @@ ostream& operator<<(ostream& screen,const LogicGate& item){
     screen<<", Output = "<<item.outputValue;
     return screen;
 }
-
+#ifdef STANDALONE_TEST
 int main(){
-    cout<<"=== CircuitLab-C++ ===\n";
+    cout<<"CircuitLab-C++ \n";
     cout<<"Logic Gates and Operator Overloading\n\n";
 
     Signal firstBit(1),secondBit(0);
@@ -118,3 +118,4 @@ int main(){
 
     return 0;
 }
+#endif
