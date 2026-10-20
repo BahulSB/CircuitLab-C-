@@ -27,3 +27,33 @@ The simulator backend is strictly decoupled from the visualization engine:
        ├──> [ HalfAdder ] (Composed of XOR + AND)
        └──> [ FullAdder ] (Composed of 2x HalfAdder + OR)
        └──> [ Mux2to1 ]   (Data routing logic)
+Getting Started
+Prerequisites
+Windows 10/11
+
+MinGW-w64 (GCC 14+)
+
+Raylib 5.0+
+
+Building and Running
+Clone the repository:
+
+DOS
+git clone [https://github.com/Jagruthi-S/CircuitLab-C-.git](https://github.com/Jagruthi-S/CircuitLab-C-.git)
+cd CircuitLab-C-
+Compile the Workstation:
+
+DOS
+g++ -std=c++17 gui_main.cpp Wire.cpp Gate.cpp -I"raylib-6.2_win32_mingw-w64\include" -L"raylib-6.2_win32_mingw-w64\lib" -lraylib -lopengl32 -lgdi32 -lwinmm -o circuitlab_workstation
+Run the Application:
+
+DOS
+circuitlab_workstation.exe
+Interactive Controls
+Left Click on Input Pins (A, B, Cin / D0, D1, SEL): Toggle logic states between 0 and 1.
+
+Full Adder / 2:1 MUX Tabs: Switch active schematic inspection.
+
+Truth Table Button: Toggle matrix synthesizer overlay with active row tracking.
+
+Clock: ON/OFF: Start/stop automated signal cycling.
