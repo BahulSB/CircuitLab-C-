@@ -27,6 +27,7 @@ The simulator backend is strictly decoupled from the visualization engine:
        ├──> [ HalfAdder ] (Composed of XOR + AND)
        └──> [ FullAdder ] (Composed of 2x HalfAdder + OR)
        └──> [ Mux2to1 ]   (Data routing logic)
+```text
 Getting Started
 Prerequisites
 Windows 10/11
