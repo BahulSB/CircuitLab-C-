@@ -1,5 +1,5 @@
 #include "Circuits.hpp"
-
+#ifdef STANDALONE
 int main() {
     std::cout << "=======================================\n";
     std::cout << "       CircuitLab-C++ Simulation       \n";
@@ -47,3 +47,4 @@ int main() {
 
     return 0;
 }
+#endif

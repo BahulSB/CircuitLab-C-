@@ -1,16 +1,18 @@
 #ifndef LOGICGATE_H
 #define LOGICGATE_H
 
-#include<iostream>
-#include<string>
+#include <iostream>
+#include <string>
+#include "Component.hpp"
+
 using namespace std;
 
-class Signal{
+class Signal {
 private:
     bool bitValue;
 
 public:
-    Signal(bool initialValue=false);
+    Signal(bool initialValue = false);
 
     bool getValue() const;
 
@@ -22,23 +24,24 @@ public:
     bool operator==(const Signal& rhs) const;
 };
 
-class LogicGate{
+class LogicGate : public CircuitComponent {
 private:
-    string gateName;
     int inputCount;
-    bool outputValue;
     bool firstInput;
     bool secondInput;
 
 public:
-    LogicGate(string name,int count,bool first,bool second=false);
+    LogicGate(string name, int count, bool first, bool second = false);
 
     ~LogicGate();
 
-    bool evaluate();
+    void evaluate() override;
+
     bool getOutput() const;
 
-    friend ostream& operator<<(ostream& screen,const LogicGate& item);
+    void displayInfo() const override;
+
+    friend ostream& operator<<(ostream& screen, const LogicGate& item);
 };
 
 #endif

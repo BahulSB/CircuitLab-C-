@@ -1,6 +1,7 @@
 #include "Utilities.hpp"
 #include "Wire.hpp"
 #include "Gate.hpp"
+#include "FlipFlops.hpp"
 #include "Circuits.hpp"
 
 #include <iostream>
@@ -25,7 +26,8 @@ void runGateSimulation(SignalQueue<std::string>& logger) {
     }
 
     LogicGate gate(gateName, hasSecond ? 2 : 1, in1 != 0, in2 != 0);
-    bool out = gate.evaluate();
+gate.evaluate();
+    bool out = gate.getOutput();
 
     std::cout << ">> " << gate << "\n";
     std::cout << ">> Output Result: " << (out ? 1 : 0) << "\n";
@@ -114,7 +116,6 @@ void runBreadboardSimulation() {
     std::cout << "Breadboard Capacity: " << bb.getCapacity() << "\n";
     std::cout << "Components safely mounted and verified in dynamic memory.\n";
 }
-
 void runTruthTableEngine() {
     std::cout << "\n--- Automated Truth Table Synthesizer ---\n"
               << " 1. 2-Input AND Gate (Gate Module)\n"
@@ -135,22 +136,27 @@ void runTruthTableEngine() {
         std::cout << "\nTruth Table: 2-Input AND Gate\n";
         TruthTableSynthesizer::render({"A", "B"}, {"AND"}, [](const std::vector<int>& in) {
             LogicGate g("AND", 2, in[0] != 0, in[1] != 0);
-            return std::vector<int>{g.evaluate() ? 1 : 0};
+            g.evaluate();
+            return std::vector<int>{g.getOutput() ? 1 : 0};
         });
-    } else if (choice == 2) {
+    }
+    else if (choice == 2) {
         std::cout << "\nTruth Table: 2-Input XOR Gate\n";
         TruthTableSynthesizer::render({"A", "B"}, {"XOR"}, [](const std::vector<int>& in) {
             LogicGate g("XOR", 2, in[0] != 0, in[1] != 0);
-            return std::vector<int>{g.evaluate() ? 1 : 0};
+            g.evaluate();
+            return std::vector<int>{g.getOutput() ? 1 : 0};
         });
-    } else if (choice == 3) {
+    }
+    else if (choice == 3) {
         std::cout << "\nTruth Table: 1-Bit Full Adder (3 Inputs -> 2 Outputs)\n";
         TruthTableSynthesizer::render({"A", "B", "Cin"}, {"Sum", "Cout"}, [](const std::vector<int>& in) {
             FullAdder fa;
             fa.execute(in[0] != 0, in[1] != 0, in[2] != 0);
             return std::vector<int>{fa.getSum() ? 1 : 0, fa.getCarry() ? 1 : 0};
         });
-    } else if (choice == 4) {
+    }
+    else if (choice == 4) {
         std::cout << "\nTruth Table: 2-to-1 Multiplexer\n";
         TruthTableSynthesizer::render({"D0", "D1", "S"}, {"Y"}, [](const std::vector<int>& in) {
             Mux2to1 mux;
@@ -158,6 +164,31 @@ void runTruthTableEngine() {
             return std::vector<int>{mux.getOutput() ? 1 : 0};
         });
     }
+}
+void runFlipFlopDemo() {
+    std::cout << "\n--- Flip-Flop Simulation ---\n";
+
+    DFlipFlop dff;
+    dff.setInput(true);
+    dff.triggerClock(true);
+
+    CircuitComponent* ptr = &dff;
+    ptr->evaluate();
+    ptr->displayInfo();
+
+    JKFlipFlop jk;
+    jk.setInputs(true, false);
+    jk.triggerClock(true);
+    ptr = &jk;
+    ptr->evaluate();
+    ptr->displayInfo();
+
+    TFlipFlop tff;
+    tff.setInput(true);
+    tff.triggerClock(true);
+    ptr = &tff;
+    ptr->evaluate();
+    ptr->displayInfo();
 }
 
 int main() {
@@ -181,8 +212,9 @@ int main() {
                   << " 6. Synthesize Full Truth Tables\n"
                   << " 7. Display Session Log (SignalQueue Buffer)\n"
                   << " 8. View Component Catalog (ComponentRegistry)\n"
-                  << " 9. Exit\n"
-                  << "Enter selection (1-9): ";
+		  << " 9.  Test Flip-Flops (Polymorphism)\n"
+                  << " 10. Exit\n"
+                  << "Enter selection (1-10): ";
 
         if (!(std::cin >> opt)) {
             std::cin.clear();
@@ -204,7 +236,10 @@ int main() {
             case 8:
                 catalog.showCatalog();
                 break;
-            case 9:
+	    case 9:
+		runFlipFlopDemo();
+		break;
+            case 10:
                 std::cout << "Terminating CircuitLab-C++ simulation. Goodbye!\n";
                 return 0;
             default:
