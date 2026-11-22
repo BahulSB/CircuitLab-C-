@@ -1,9 +1,38 @@
+#include "Utilities.hpp"
+#include "Wire.hpp"
+#include "Gate.hpp"
+#include "FlipFlops.hpp"
+#include "Circuits.hpp"
+
 #include <iostream>
 #include <iomanip>
 #include <vector>
 #include <string>
 #include <limits>
 
+void runGateSimulation(SignalQueue<std::string>& logger) {
+    std::cout << "\n--- Logic Gate Evaluation (Gate Module) ---\n"
+              << "Available Gates: AND, OR, NOT, NAND, NOR, XOR, XNOR\n"
+              << "Enter Gate Name (exact uppercase): ";
+    std::string gateName;
+    std::cin >> gateName;
+
+    int in1 = 0, in2 = 0;
+    std::cout << "Input 1 (0 or 1): ";
+    std::cin >> in1;
+
+    bool hasSecond = (gateName != "NOT");
+    if (hasSecond) {
+        std::cout << "Input 2 (0 or 1): ";
+        std::cin >> in2;
+    }
+
+    LogicGate gate(gateName, hasSecond ? 2 : 1, in1 != 0, in2 != 0);
+gate.evaluate();
+    bool out = gate.getOutput();
+
+    std::cout << ">> " << gate << "\n";
+    std::cout << ">> Output Result: " << (out ? 1 : 0) << "\n";
 #include "Exceptions.hpp"
 #include "Wire.hpp"
 #include "Gate.hpp"
@@ -243,6 +272,37 @@ void runPolymorphicBreadboardAndFaults(SignalQueue<std::string>& logger) {
         board.addComponent("BB_ALU4", new FullAdder("Duplicate"));
     }
 
+    if (choice == 1) {
+        std::cout << "\nTruth Table: 2-Input AND Gate\n";
+        TruthTableSynthesizer::render({"A", "B"}, {"AND"}, [](const std::vector<int>& in) {
+            LogicGate g("AND", 2, in[0] != 0, in[1] != 0);
+            g.evaluate();
+            return std::vector<int>{g.getOutput() ? 1 : 0};
+        });
+    }
+    else if (choice == 2) {
+        std::cout << "\nTruth Table: 2-Input XOR Gate\n";
+        TruthTableSynthesizer::render({"A", "B"}, {"XOR"}, [](const std::vector<int>& in) {
+            LogicGate g("XOR", 2, in[0] != 0, in[1] != 0);
+            g.evaluate();
+            return std::vector<int>{g.getOutput() ? 1 : 0};
+        });
+    }
+    else if (choice == 3) {
+        std::cout << "\nTruth Table: 1-Bit Full Adder (3 Inputs -> 2 Outputs)\n";
+        TruthTableSynthesizer::render({"A", "B", "Cin"}, {"Sum", "Cout"}, [](const std::vector<int>& in) {
+            FullAdder fa;
+            fa.execute(in[0] != 0, in[1] != 0, in[2] != 0);
+            return std::vector<int>{fa.getSum() ? 1 : 0, fa.getCarry() ? 1 : 0};
+        });
+    }
+    else if (choice == 4) {
+        std::cout << "\nTruth Table: 2-to-1 Multiplexer\n";
+        TruthTableSynthesizer::render({"D0", "D1", "S"}, {"Y"}, [](const std::vector<int>& in) {
+            Mux2to1 mux;
+            mux.execute(in[0] != 0, in[1] != 0, in[2] != 0);
+            return std::vector<int>{mux.getOutput() ? 1 : 0};
+        });
     logger.push("Polymorphic Breadboard simulation completed.");
 }
 
@@ -305,6 +365,31 @@ void runSaveLoadSnapshot(SignalQueue<std::string>& logger) {
         logger.push("Loaded circuit snapshot from " + filename);
     }
 }
+void runFlipFlopDemo() {
+    std::cout << "\n--- Flip-Flop Simulation ---\n";
+
+    DFlipFlop dff;
+    dff.setInput(true);
+    dff.triggerClock(true);
+
+    CircuitComponent* ptr = &dff;
+    ptr->evaluate();
+    ptr->displayInfo();
+
+    JKFlipFlop jk;
+    jk.setInputs(true, false);
+    jk.triggerClock(true);
+    ptr = &jk;
+    ptr->evaluate();
+    ptr->displayInfo();
+
+    TFlipFlop tff;
+    tff.setInput(true);
+    tff.triggerClock(true);
+    ptr = &tff;
+    ptr->evaluate();
+    ptr->displayInfo();
+}
 
 // =========================================================================
 // MAIN MENU LOOP
@@ -317,6 +402,48 @@ int main() {
               << "=================================================================\n";
 
     while (true) {
+        std::cout << "  CircuitLab-C++: Master Simulation Console           \n"
+                  << " 1. Evaluate Logic Gate (Gate Module)\n"
+                  << " 2. Simulate 1-Bit Full Adder (Circuits Module)\n"
+                  << " 3. Simulate 2-to-1 Multiplexer (Circuits Module)\n"
+                  << " 4. Run Wire Signal Diagnostics (Wire Module)\n"
+                  << " 5. Test Dynamic Breadboard Container\n"
+                  << " 6. Synthesize Full Truth Tables\n"
+                  << " 7. Display Session Log (SignalQueue Buffer)\n"
+                  << " 8. View Component Catalog (ComponentRegistry)\n"
+		  << " 9.  Test Flip-Flops (Polymorphism)\n"
+                  << " 10. Exit\n"
+                  << "Enter selection (1-10): ";
+
+        if (!(std::cin >> opt)) {
+            std::cin.clear();
+            std::cin.ignore(1000, '\n');
+            continue;
+        }
+
+        switch (opt) {
+            case 1: runGateSimulation(sessionLog); break;
+            case 2: runFullAdderSimulation(sessionLog); break;
+            case 3: runMuxSimulation(sessionLog); break;
+            case 4: runWireDiagnostics(); break;
+            case 5: runBreadboardSimulation(); break;
+            case 6: runTruthTableEngine(); break;
+            case 7:
+                std::cout << "\n--- SignalQueue Log (" << sessionLog.count() << " events recorded) ---\n";
+                sessionLog.printQueue();
+                break;
+            case 8:
+                catalog.showCatalog();
+                break;
+	    case 9:
+		runFlipFlopDemo();
+		break;
+            case 10:
+                std::cout << "Terminating CircuitLab-C++ simulation. Goodbye!\n";
+                return 0;
+            default:
+                std::cout << "Invalid choice. Select between 1 and 9.\n";
+                break;
         std::cout << "\n========================= MAIN MENU =========================\n"
                   << "  1. Basic Logic Gates & Overloaded Operators\n"
                   << "  2. Full Adder & 2:1 MUX\n"
