@@ -1,49 +1,365 @@
 #include "Circuits.hpp"
+#include <iomanip>
 
+void HalfAdder::evaluate() {
+    wire_sum = xor_g.evaluate(in_a, in_b);
+    wire_carry = and_g.evaluate(in_a, in_b);
+    primary_output = wire_sum;
+}
+
+void HalfAdder::printState() const {
+    std::cout << "[" << getType() << " :: " << label << "] "
+              << "A=" << in_a << ", B=" << in_b
+              << " -> Sum=" << wire_sum << ", Carry=" << wire_carry << "\n";
+}
+
+void FullAdder::evaluate() {
+   
+    sub_ha1.execute(in_a, in_b);
+    stage1_sum = sub_ha1.getSum();
+    stage1_carry = sub_ha1.getCarry();
+
+    
+    sub_ha2.execute(stage1_sum, in_cin);
+    sum_out = sub_ha2.getSum();
+    stage2_carry = sub_ha2.getCarry();
+
+    carry_out = or_g.evaluate(stage1_carry, stage2_carry);
+    primary_output = sum_out;
+}
+
+void FullAdder::printState() const {
+    std::cout << "[" << getType() << " :: " << label << "] "
+              << "A=" << in_a << ", B=" << in_b << ", Cin=" << in_cin
+              << " -> Sum=" << sum_out << ", Carry=" << carry_out << "\n";
+}
+
+void Mux2to1::evaluate() {
+    sel_inv = inv.evaluate(in_sel);
+    branch0 = and1.evaluate(in_i0, sel_inv);
+    branch1 = and2.evaluate(in_i1, in_sel);
+    result = out_or.evaluate(branch0, branch1);
+    primary_output = result;
+}
+
+void Mux2to1::printState() const {
+    std::cout << "[" << getType() << " :: " << label << "] "
+              << "D0=" << in_i0 << ", D1=" << in_i1 << ", Sel=" << in_sel
+              << " -> Out=" << result << "\n";
+}
+
+RippleCarryAdderSubtractor4Bit::RippleCarryAdderSubtractor4Bit(const std::string& lbl)
+    : CircuitComponent(lbl),
+      adders{FullAdder(lbl + "_FA0"), FullAdder(lbl + "_FA1"),
+             FullAdder(lbl + "_FA2"), FullAdder(lbl + "_FA3")} {}
+
+void RippleCarryAdderSubtractor4Bit::setInputs(const std::array<bool, 4>& inA,
+                                               const std::array<bool, 4>& inB,
+                                               bool m) {
+    A = inA;
+    B = inB;
+    mode_m = m;
+}
+
+void RippleCarryAdderSubtractor4Bit::setInputsFromInt(uint8_t valA, uint8_t valB, bool m) {
+    for (int i = 0; i < 4; ++i) {
+        A[i] = ((valA >> i) & 1) != 0;
+        B[i] = ((valB >> i) & 1) != 0;
+    }
+    mode_m = m;
+}
+
+void RippleCarryAdderSubtractor4Bit::evaluate() {
+    bool c = mode_m;     bool c3 = false;
+
+    for (int i = 0; i < 4; ++i) {
+        bool b_xor_m = b_xor_gates[i].evaluate(B[i], mode_m);
+        adders[i].execute(A[i], b_xor_m, c);
+
+        result[i] = adders[i].getSum();
+        if (i == 2) {
+            c3 = adders[i].getCarry(); 
+        }
+        c = adders[i].getCarry();
+    }
+
+    carry_out = c;                   
+    overflow = (c3 != carry_out);    
+    primary_output = result[3];
+}
+
+uint8_t RippleCarryAdderSubtractor4Bit::getResultValue() const {
+    uint8_t val = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (result[i]) {
+            val |= static_cast<uint8_t>(1u << i);
+        }
+    }
+    return val;
+}
+
+void RippleCarryAdderSubtractor4Bit::printState() const {
+    std::cout << "[" << getType() << " :: " << label << "] "
+              << "Mode=" << (mode_m ? "SUB(1)" : "ADD(0)") << " | "
+              << "A=" << A[3] << A[2] << A[1] << A[0] << " "
+              << "B=" << B[3] << B[2] << B[1] << B[0] << " -> "
+              << "Out=" << result[3] << result[2] << result[1] << result[0]
+              << " (Dec: " << static_cast<int>(getResultValue()) << "), "
+              << "Cout=" << carry_out << ", Overflow=" << overflow << "\n";
+}
+
+void TFlipFlop::evaluate() {
+    primary_output = q_state;
+}
+
+void TFlipFlop::tick() {
+    if (reset_line) {
+        q_state = false;
+    } else if (t_in) {
+        q_state = !q_state;
+    }
+    primary_output = q_state;
+}
+
+void TFlipFlop::reset() {
+    q_state = false;
+    primary_output = false;
+}
+
+void TFlipFlop::printState() const {
+    std::cout << "[" << getType() << " :: " << label << "] "
+              << "T=" << t_in << " -> Q=" << q_state << "\n";
+}
+
+SynchronousCounter4Bit::SynchronousCounter4Bit(const std::string& lbl, bool en)
+    : SequentialCircuit(lbl),
+      ff{TFlipFlop(lbl + "_FF0"), TFlipFlop(lbl + "_FF1"),
+         TFlipFlop(lbl + "_FF2"), TFlipFlop(lbl + "_FF3")},
+      enable(en) {}
+
+void SynchronousCounter4Bit::evaluate() {
+    
+    bool t0 = enable;
+    bool t1 = t0 && ff[0].getQ();
+    bool t2 = t1 && ff[1].getQ();
+    bool t3 = t2 && ff[2].getQ();
+
+    ff[0].setToggle(t0);
+    ff[1].setToggle(t1);
+    ff[2].setToggle(t2);
+    ff[3].setToggle(t3);
+
+    for (auto& flip_flop : ff) {
+        flip_flop.evaluate();
+    }
+    primary_output = ff[3].getQ();
+}
+
+void SynchronousCounter4Bit::tick() {
+    
+    evaluate();
+    for (auto& flip_flop : ff) {
+        flip_flop.tick();
+    }
+    primary_output = ff[3].getQ();
+}
+
+void SynchronousCounter4Bit::reset() {
+    for (auto& flip_flop : ff) {
+        flip_flop.reset();
+    }
+    primary_output = false;
+}
+
+uint8_t SynchronousCounter4Bit::getCount() const {
+    uint8_t count = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (ff[i].getQ()) {
+            count |= static_cast<uint8_t>(1u << i);
+        }
+    }
+    return count;
+}
+
+std::array<bool, 4> SynchronousCounter4Bit::getStateBits() const {
+    return {ff[0].getQ(), ff[1].getQ(), ff[2].getQ(), ff[3].getQ()};
+}
+
+void SynchronousCounter4Bit::printState() const {
+    std::cout << "[" << getType() << " :: " << label << "] "
+              << "Q3..Q0 = " << ff[3].getQ() << ff[2].getQ() << ff[1].getQ() << ff[0].getQ()
+              << " (Dec: " << static_cast<int>(getCount()) << ")\n";
+}
+
+void Debugger::probeHalfAdder(const HalfAdder& ha) {
+    std::cout << "  [Probe :: HalfAdder] Sum line: " << ha.wire_sum
+              << " | Carry line: " << ha.wire_carry << "\n";
+}
+
+void Debugger::probeFullAdder(const FullAdder& fa) {
+    std::cout << "  [Probe :: FullAdder] Stage1 Sum: " << fa.stage1_sum
+              << " | Stage1 Carry: " << fa.stage1_carry
+              << " | Stage2 Carry: " << fa.stage2_carry << "\n";
+}
+
+void Debugger::probeAdderSubtractor4Bit(const RippleCarryAdderSubtractor4Bit& alu) {
+    std::cout << "  [Probe :: 4-Bit ALU] Mode=" << alu.mode_m
+              << " | Cout=" << alu.carry_out
+              << " | Overflow=" << alu.overflow << "\n";
+}
+
+void Debugger::probeCounter4Bit(const SynchronousCounter4Bit& counter) {
+    std::cout << "  [Probe :: 4-Bit Counter] Count="
+              << static_cast<int>(counter.getCount()) << "\n";
+}
+
+void Debugger::inspectComponent(const CircuitComponent& comp) {
+    std::cout << "  [Probe :: " << comp.getType() << "] Label='" << comp.label
+              << "' | PrimaryOutput=" << comp.primary_output << "\n";
+}
+
+Breadboard::Breadboard(std::size_t reserve_cap) {
+    components.reserve(reserve_cap);
+}
+
+Breadboard::~Breadboard() {
+    freeComponents();
+}
+
+Breadboard::Breadboard(const Breadboard& src)
+    : auto_label_counter(src.auto_label_counter) {
+    components.reserve(src.components.size());
+    for (const CircuitComponent* comp : src.components) {
+        CircuitComponent* cloned = comp->clone();
+        components.push_back(cloned);
+        component_map[cloned->getLabel()] = cloned;
+    }
+}
+
+Breadboard& Breadboard::operator=(const Breadboard& rhs) {
+    if (this != &rhs) {
+        freeComponents();
+        auto_label_counter = rhs.auto_label_counter;
+        components.reserve(rhs.components.size());
+        for (const CircuitComponent* comp : rhs.components) {
+            CircuitComponent* cloned = comp->clone();
+            components.push_back(cloned);
+            component_map[cloned->getLabel()] = cloned;
+        }
+    }
+    return *this;
+}
+
+void Breadboard::addComponent(CircuitComponent* comp) {
+    if (!comp) {
+        throw std::invalid_argument("Cannot mount null CircuitComponent onto Breadboard.");
+    }
+    std::string key = comp->getLabel();
+    
+    if (component_map.find(key) != component_map.end()) {
+        key = key + "_" + std::to_string(++auto_label_counter);
+        comp->setLabel(key);
+    }
+    components.push_back(comp);
+    component_map[key] = comp;
+}
+
+void Breadboard::addComponent(const std::string& label, CircuitComponent* comp) {
+    if (!comp) {
+        throw std::invalid_argument("Cannot mount null CircuitComponent onto Breadboard.");
+    }
+    if (component_map.find(label) != component_map.end()) {
+        throw std::runtime_error("Duplicate component label on Breadboard: " + label);
+    }
+    comp->setLabel(label);
+    components.push_back(comp);
+    component_map[label] = comp;
+}
+
+CircuitComponent* Breadboard::getComponent(const std::string& label) const {
+    auto it = component_map.find(label);
+    if (it == component_map.end()) {
+        return nullptr;
+    }
+    return it->second;
+}
+
+void Breadboard::simulateAll() {
+    std::cout << "\n--- Polymorphic Breadboard Simulation (" << components.size() << " components) ---\n";
+    for (CircuitComponent* comp : components) {
+        comp->evaluate();   // Runtime dynamic binding
+        comp->printState();
+    }
+}
+
+void Breadboard::freeComponents() {
+    for (CircuitComponent* comp : components) {
+        delete comp;
+    }
+    components.clear();
+    component_map.clear();
+}
+#ifdef CIRCUITS_STANDALONE_TEST
 int main() {
-    std::cout << "=======================================\n";
-    std::cout << "       CircuitLab-C++ Simulation       \n";
-    std::cout << "=======================================\n\n";
+    std::cout << "====================================================\n";
+    std::cout << "   CircuitLab-C++ v2.0 :: Polymorphic & DSD Tests   \n";
+    std::cout << "====================================================\n";
 
-    // Allocate dynamic sub-circuits on breadboard slot container
-    Breadboard board;
-    auto* fa = new FullAdder();
-    auto* mux = new Mux2to1();
+    Breadboard board(4);
+
+    auto* fa = new FullAdder("FA_Unit");
+    fa->execute(true, true, false);
+
+    auto* mux = new Mux2to1("MUX_Unit");
+    mux->execute(false, true, true);
+
+    auto* alu4 = new RippleCarryAdderSubtractor4Bit("ALU_4Bit");
+    auto* counter4 = new SynchronousCounter4Bit("Counter_4Bit");
 
     board.addComponent(fa);
     board.addComponent(mux);
+    board.addComponent("ALU_4Bit", alu4);
+    board.addComponent("Counter_4Bit", counter4);
 
-    std::cout << "--- 1-Bit Full Adder Truth Table ---\n";
-    std::cout << "A | B | Cin | Sum | Carry\n";
-    std::cout << "-------------------------\n";
-    for (int a = 0; a <= 1; ++a) {
-        for (int b = 0; b <= 1; ++b) {
-            for (int cin = 0; cin <= 1; ++cin) {
-                fa->execute(a, b, cin);
-                std::cout << a << " | " << b << " |  " << cin << "  |  "
-                          << fa->getSum() << "  |   " << fa->getCarry() << "\n";
-                
-                // Inspect private wire signals directly via friend class
-                Debugger::probeFullAdder(*fa);
-            }
-        }
+    // 1. Test 4-Bit Addition: 6 + 5 = 11 (1011), Cout = 0, Overflow = 1 (signed 4-bit)
+    std::cout << "\n[Test 1] 4-Bit Addition (6 + 5 = 11) via Polymorphic simulateAll():\n";
+    alu4->setInputsFromInt(6, 5, false); // M = 0 -> ADD
+    board.simulateAll();
+    Debugger::probeAdderSubtractor4Bit(*alu4);
+
+    // 2. Test 4-Bit Subtraction: 11 - 4 = 7 (0111), Cout = 1, Overflow = 0
+    std::cout << "\n[Test 2] 4-Bit Subtraction (11 - 4 = 7) via std::map Lookup:\n";
+    auto* lookedUpAlu = dynamic_cast<RippleCarryAdderSubtractor4Bit*>(
+        board.getComponent("ALU_4Bit")
+    );
+    if (lookedUpAlu) {
+        lookedUpAlu->setInputsFromInt(11, 4, true); // M = 1 -> SUB (2's complement)
+        lookedUpAlu->evaluate();
+        lookedUpAlu->printState();
+        Debugger::probeAdderSubtractor4Bit(*lookedUpAlu);
     }
 
-    std::cout << "\n--- 2:1 Multiplexer Truth Table ---\n";
-    std::cout << "I0 | I1 | Sel | Out\n";
-    std::cout << "-------------------\n";
-    for (int i0 = 0; i0 <= 1; ++i0) {
-        for (int i1 = 0; i1 <= 1; ++i1) {
-            for (int sel = 0; sel <= 1; ++sel) {
-                mux->execute(i0, i1, sel);
-                std::cout << i0 << "  | " << i1 << "  |  " << sel << "  |  " << mux->getOutput() << "\n";
-            }
+    // 3. Test 16-Tick 4-Bit Synchronous Counter Cycle (0000 -> 1111 -> 0000)
+    std::cout << "\n[Test 3] 4-Bit Synchronous Counter (16-Tick Cycle & Reset):\n";
+    auto* lookedUpCounter = dynamic_cast<SynchronousCounter4Bit*>(
+        board.getComponent("Counter_4Bit")
+    );
+    if (lookedUpCounter) {
+        lookedUpCounter->reset();
+        std::cout << "After reset() -> ";
+        lookedUpCounter->printState();
+
+        for (int pulse = 1; pulse <= 16; ++pulse) {
+            lookedUpCounter->tick();
+            std::cout << "Clock Tick " << std::setw(2) << pulse << " -> ";
+            lookedUpCounter->printState();
         }
     }
 
     std::cout << "\n--- Breadboard Diagnostics ---\n";
     std::cout << "Mounted Components : " << board.getCount() << "\n";
-    std::cout << "Allocated Capacity : " << board.getCapacity() << "\n";
+    std::cout << "Vector Capacity    : " << board.getCapacity() << "\n";
 
     return 0;
 }
+#endif
