@@ -1,41 +1,13 @@
-#include "Utilities.hpp"
-#include "Wire.hpp"
-#include "Gate.hpp"
-#include "FlipFlops.hpp"
-#include "Circuits.hpp"
-
 #include <iostream>
 #include <iomanip>
 #include <vector>
 #include <string>
 #include <limits>
 
-void runGateSimulation(SignalQueue<std::string>& logger) {
-    std::cout << "\n--- Logic Gate Evaluation (Gate Module) ---\n"
-              << "Available Gates: AND, OR, NOT, NAND, NOR, XOR, XNOR\n"
-              << "Enter Gate Name (exact uppercase): ";
-    std::string gateName;
-    std::cin >> gateName;
-
-    int in1 = 0, in2 = 0;
-    std::cout << "Input 1 (0 or 1): ";
-    std::cin >> in1;
-
-    bool hasSecond = (gateName != "NOT");
-    if (hasSecond) {
-        std::cout << "Input 2 (0 or 1): ";
-        std::cin >> in2;
-    }
-
-    LogicGate gate(gateName, hasSecond ? 2 : 1, in1 != 0, in2 != 0);
-gate.evaluate();
-    bool out = gate.getOutput();
-
-    std::cout << ">> " << gate << "\n";
-    std::cout << ">> Output Result: " << (out ? 1 : 0) << "\n";
 #include "Exceptions.hpp"
 #include "Wire.hpp"
 #include "Gate.hpp"
+#include "FlipFlops.hpp"
 #include "Circuits.hpp"
 #include "Utilities.hpp"
 
@@ -148,7 +120,7 @@ void runTruthTableAndCSV(SignalQueue<std::string>& logger) {
     } else {
         auto evalXor = [](const std::vector<int>& in) {
             LogicGate g("XOR", 2, in[0] != 0, in[1] != 0);
-            return std::vector<int>{g.evaluate() ? 1 : 0};
+            return std::vector<int>{g.getOutput() ? 1 : 0};
         };
         TruthTableSynthesizer::render({"A", "B"}, {"XOR"}, evalXor);
         tableData = TruthTableSynthesizer::synthesize("XOR_Gate", {"A", "B"}, {"XOR"}, evalXor);
@@ -184,20 +156,32 @@ void runRippleCarryAdderSubtractor(SignalQueue<std::string>& logger) {
 }
 
 // =========================================================================
-// 5. Sequential Flip-Flops (T Flip-Flop) & 4-Bit Synchronous Clocked Counter
+// 5. Sequential Flip-Flops (D, JK, T) & 4-Bit Synchronous Clocked Counter
 // =========================================================================
 void runFlipFlopsAndCounter(SignalQueue<std::string>& logger) {
-    std::cout << "\n--- [5] Sequential T Flip-Flop & 4-Bit Synchronous Clocked Counter ---\n";
-    TFlipFlop tff("TFF_Single");
-    bool tInput = readBit("Enter Toggle Input T for standalone TFlipFlop (0/1): ");
-    tff.setToggle(tInput);
+    std::cout << "\n--- [5] Sequential Flip-Flops (D, JK, T) & 4-Bit Clocked Counter ---\n";
 
-    std::cout << "Before clock tick: ";
-    tff.printState();
-    tff.tick();
-    std::cout << "After  clock tick: ";
-    tff.printState();
-    logComponentExecution(tff);
+    DFlipFlop  dff;
+    JKFlipFlop jkff;
+    TFlipFlop  tff;
+
+    bool dIn = readBit("Enter D input for D Flip-Flop   (0/1): ");
+    bool jIn = readBit("Enter J input for JK Flip-Flop  (0/1): ");
+    bool kIn = readBit("Enter K input for JK Flip-Flop  (0/1): ");
+    bool tIn = readBit("Enter T input for T Flip-Flop   (0/1): ");
+
+    dff.setInput(dIn);
+    jkff.setInputs(jIn, kIn);
+    tff.setInput(tIn);
+
+    std::cout << "\n[Triggering Rising Clock Edge (risingEdge = true)]\n";
+    dff.triggerClock(true);
+    jkff.triggerClock(true);
+    tff.triggerClock(true);
+
+    dff.displayInfo();
+    jkff.displayInfo();
+    tff.displayInfo();
 
     int pulses = readInt("\nEnter number of clock pulses for 4-Bit Synchronous Counter (1..16): ", 1, 16);
     SynchronousCounter4Bit counter("SyncCounter_4Bit", true);
@@ -214,7 +198,7 @@ void runFlipFlopsAndCounter(SignalQueue<std::string>& logger) {
 
     Debugger::probeCounter4Bit(counter);
     logComponentExecution(counter);
-    logger.push("4-Bit Counter simulated for " + std::to_string(pulses) +
+    logger.push("Flip-Flops & 4-Bit Counter simulated for " + std::to_string(pulses) +
                 " ticks -> Count=" + std::to_string(counter.getCount()));
 }
 
@@ -243,7 +227,6 @@ void runPolymorphicBreadboardAndFaults(SignalQueue<std::string>& logger) {
     board.addComponent("BB_ALU4", alu);
     board.addComponent("BB_Counter4", cnt);
 
-    // Runtime polymorphism: invokes virtual evaluate() & printState() on every derived object
     board.simulateAll();
 
     std::cout << "\n--- Hardware Fault Exception Simulation ---\n"
@@ -268,41 +251,9 @@ void runPolymorphicBreadboardAndFaults(SignalQueue<std::string>& logger) {
             throw ShortCircuitException("NET_VCC <-> NET_GND");
         }
     } else {
-        // Triggers std::runtime_error inside Breadboard::addComponent (caught as std::exception)
         board.addComponent("BB_ALU4", new FullAdder("Duplicate"));
     }
 
-    if (choice == 1) {
-        std::cout << "\nTruth Table: 2-Input AND Gate\n";
-        TruthTableSynthesizer::render({"A", "B"}, {"AND"}, [](const std::vector<int>& in) {
-            LogicGate g("AND", 2, in[0] != 0, in[1] != 0);
-            g.evaluate();
-            return std::vector<int>{g.getOutput() ? 1 : 0};
-        });
-    }
-    else if (choice == 2) {
-        std::cout << "\nTruth Table: 2-Input XOR Gate\n";
-        TruthTableSynthesizer::render({"A", "B"}, {"XOR"}, [](const std::vector<int>& in) {
-            LogicGate g("XOR", 2, in[0] != 0, in[1] != 0);
-            g.evaluate();
-            return std::vector<int>{g.getOutput() ? 1 : 0};
-        });
-    }
-    else if (choice == 3) {
-        std::cout << "\nTruth Table: 1-Bit Full Adder (3 Inputs -> 2 Outputs)\n";
-        TruthTableSynthesizer::render({"A", "B", "Cin"}, {"Sum", "Cout"}, [](const std::vector<int>& in) {
-            FullAdder fa;
-            fa.execute(in[0] != 0, in[1] != 0, in[2] != 0);
-            return std::vector<int>{fa.getSum() ? 1 : 0, fa.getCarry() ? 1 : 0};
-        });
-    }
-    else if (choice == 4) {
-        std::cout << "\nTruth Table: 2-to-1 Multiplexer\n";
-        TruthTableSynthesizer::render({"D0", "D1", "S"}, {"Y"}, [](const std::vector<int>& in) {
-            Mux2to1 mux;
-            mux.execute(in[0] != 0, in[1] != 0, in[2] != 0);
-            return std::vector<int>{mux.getOutput() ? 1 : 0};
-        });
     logger.push("Polymorphic Breadboard simulation completed.");
 }
 
@@ -329,14 +280,15 @@ void runSaveLoadSnapshot(SignalQueue<std::string>& logger) {
         Mux2to1 mux("MUX_Snap");
         mux.execute(false, true, true);
 
-        TFlipFlop tff("TFF_Snap", true);
-        tff.tick();
+        TFlipFlop tff;
+        tff.setInput(true);
+        tff.triggerClock(true);
 
         std::vector<CircuitSnapshotRecord> records = {
             {ha.getLabel(),  ha.getType(),  true,  true,  ha.getSum()},
             {fa.getLabel(),  fa.getType(),  true,  true,  fa.getSum()},
             {mux.getLabel(), mux.getType(), false, true,  mux.getOutput()},
-            {tff.getLabel(), tff.getType(), true,  false, tff.getQ()}
+            {"TFF_Snap",     "TFlipFlop",   true,  false, tff.getQ()}
         };
 
         CircuitFileManager::saveCircuitSnapshot(filename, "CircuitLab_v2_Eval_Snapshot", records);
@@ -365,31 +317,6 @@ void runSaveLoadSnapshot(SignalQueue<std::string>& logger) {
         logger.push("Loaded circuit snapshot from " + filename);
     }
 }
-void runFlipFlopDemo() {
-    std::cout << "\n--- Flip-Flop Simulation ---\n";
-
-    DFlipFlop dff;
-    dff.setInput(true);
-    dff.triggerClock(true);
-
-    CircuitComponent* ptr = &dff;
-    ptr->evaluate();
-    ptr->displayInfo();
-
-    JKFlipFlop jk;
-    jk.setInputs(true, false);
-    jk.triggerClock(true);
-    ptr = &jk;
-    ptr->evaluate();
-    ptr->displayInfo();
-
-    TFlipFlop tff;
-    tff.setInput(true);
-    tff.triggerClock(true);
-    ptr = &tff;
-    ptr->evaluate();
-    ptr->displayInfo();
-}
 
 // =========================================================================
 // MAIN MENU LOOP
@@ -402,54 +329,12 @@ int main() {
               << "=================================================================\n";
 
     while (true) {
-        std::cout << "  CircuitLab-C++: Master Simulation Console           \n"
-                  << " 1. Evaluate Logic Gate (Gate Module)\n"
-                  << " 2. Simulate 1-Bit Full Adder (Circuits Module)\n"
-                  << " 3. Simulate 2-to-1 Multiplexer (Circuits Module)\n"
-                  << " 4. Run Wire Signal Diagnostics (Wire Module)\n"
-                  << " 5. Test Dynamic Breadboard Container\n"
-                  << " 6. Synthesize Full Truth Tables\n"
-                  << " 7. Display Session Log (SignalQueue Buffer)\n"
-                  << " 8. View Component Catalog (ComponentRegistry)\n"
-		  << " 9.  Test Flip-Flops (Polymorphism)\n"
-                  << " 10. Exit\n"
-                  << "Enter selection (1-10): ";
-
-        if (!(std::cin >> opt)) {
-            std::cin.clear();
-            std::cin.ignore(1000, '\n');
-            continue;
-        }
-
-        switch (opt) {
-            case 1: runGateSimulation(sessionLog); break;
-            case 2: runFullAdderSimulation(sessionLog); break;
-            case 3: runMuxSimulation(sessionLog); break;
-            case 4: runWireDiagnostics(); break;
-            case 5: runBreadboardSimulation(); break;
-            case 6: runTruthTableEngine(); break;
-            case 7:
-                std::cout << "\n--- SignalQueue Log (" << sessionLog.count() << " events recorded) ---\n";
-                sessionLog.printQueue();
-                break;
-            case 8:
-                catalog.showCatalog();
-                break;
-	    case 9:
-		runFlipFlopDemo();
-		break;
-            case 10:
-                std::cout << "Terminating CircuitLab-C++ simulation. Goodbye!\n";
-                return 0;
-            default:
-                std::cout << "Invalid choice. Select between 1 and 9.\n";
-                break;
         std::cout << "\n========================= MAIN MENU =========================\n"
                   << "  1. Basic Logic Gates & Overloaded Operators\n"
                   << "  2. Full Adder & 2:1 MUX\n"
                   << "  3. Truth Table Synthesizer + Export to CSV file\n"
                   << "  4. 4-Bit Ripple Carry Adder / Subtractor\n"
-                  << "  5. Sequential Flip-Flops (T) & 4-Bit Clocked Counter\n"
+                  << "  5. Sequential Flip-Flops (D, JK, T) & 4-Bit Clocked Counter\n"
                   << "  6. Polymorphic Breadboard Simulation & Fault Exception Demo\n"
                   << "  7. Save / Load Circuit Snapshot to File\n"
                   << "  8. Exit\n"

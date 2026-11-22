@@ -9,56 +9,34 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "Component.hpp"
 
-class AndGate {
+class PrimitiveAnd {
 public:
     bool evaluate(bool a, bool b) const { return a && b; }
 };
 
-class OrGate {
+class PrimitiveOr {
 public:
     bool evaluate(bool a, bool b) const { return a || b; }
 };
 
-class NotGate {
+class PrimitiveNot {
 public:
     bool evaluate(bool in) const { return !in; }
 };
 
-class XorGate {
+class PrimitiveXor {
 public:
     bool evaluate(bool a, bool b) const { return a != b; }
 };
 
 class Debugger;
 
-class CircuitComponent {
-protected:
-    std::string label;
-    bool primary_output{false};
-
-    friend class Debugger;
-
-public:
-    explicit CircuitComponent(const std::string& lbl = "Component")
-        : label(lbl), primary_output(false) {}
-
-    virtual ~CircuitComponent() = default;
-
-    virtual void evaluate() = 0;
-    virtual std::string getType() const = 0;
-    virtual void printState() const = 0;
-    virtual CircuitComponent* clone() const = 0;
-
-    std::string getLabel() const { return label; }
-    void setLabel(const std::string& lbl) { label = lbl; }
-    bool getPrimaryOutput() const { return primary_output; }
-};
-
 class HalfAdder : public CircuitComponent {
 private:
-    XorGate xor_g;
-    AndGate and_g;
+    PrimitiveXor xor_g;
+    PrimitiveAnd and_g;
 
     bool in_a{false};
     bool in_b{false};
@@ -88,6 +66,7 @@ public:
     bool getCarry() const { return wire_carry; }
 
     std::string getType() const override { return "HalfAdder"; }
+    void displayInfo() const override { printState(); }
     void printState() const override;
     CircuitComponent* clone() const override { return new HalfAdder(*this); }
 };
@@ -96,7 +75,7 @@ class FullAdder : public CircuitComponent {
 private:
     HalfAdder sub_ha1;
     HalfAdder sub_ha2;
-    OrGate or_g;
+    PrimitiveOr or_g;
 
     bool in_a{false};
     bool in_b{false};
@@ -132,15 +111,16 @@ public:
     bool getCarry() const { return carry_out; }
 
     std::string getType() const override { return "FullAdder"; }
+    void displayInfo() const override { printState(); }
     void printState() const override;
     CircuitComponent* clone() const override { return new FullAdder(*this); }
 };
 
 class Mux2to1 : public CircuitComponent {
 private:
-    NotGate inv;
-    AndGate and1, and2;
-    OrGate out_or;
+    PrimitiveNot inv;
+    PrimitiveAnd and1, and2;
+    PrimitiveOr out_or;
 
     bool in_i0{false};
     bool in_i1{false};
@@ -174,6 +154,7 @@ public:
     bool getOutput() const { return result; }
 
     std::string getType() const override { return "Mux2to1"; }
+    void displayInfo() const override { printState(); }
     void printState() const override;
     CircuitComponent* clone() const override { return new Mux2to1(*this); }
 };
@@ -181,7 +162,7 @@ public:
 class RippleCarryAdderSubtractor4Bit : public CircuitComponent {
 private:
     std::array<FullAdder, 4> adders;
-    std::array<XorGate, 4> b_xor_gates;
+    std::array<PrimitiveXor, 4> b_xor_gates;
 
     std::array<bool, 4> A{false, false, false, false};
     std::array<bool, 4> B{false, false, false, false};
@@ -213,6 +194,7 @@ public:
     bool getOverflow() const { return overflow; }
 
     std::string getType() const override { return "RippleCarryAdderSubtractor4Bit"; }
+    void displayInfo() const override { printState(); }
     void printState() const override;
     CircuitComponent* clone() const override { return new RippleCarryAdderSubtractor4Bit(*this); }
 };
@@ -230,7 +212,7 @@ public:
     virtual void reset() = 0;
 };
 
-class TFlipFlop : public SequentialCircuit {
+class CounterTFlipFlop : public SequentialCircuit {
 private:
     bool t_in{false};
     bool q_state{false};
@@ -238,9 +220,9 @@ private:
     friend class Debugger;
 
 public:
-    explicit TFlipFlop(const std::string& lbl = "TFlipFlop", bool toggle = false)
+    explicit CounterTFlipFlop(const std::string& lbl = "CounterTFlipFlop", bool toggle = false)
         : SequentialCircuit(lbl), t_in(toggle), q_state(false) {}
-    ~TFlipFlop() override = default;
+    ~CounterTFlipFlop() override = default;
 
     void setToggle(bool t) { t_in = t; }
     bool getQ() const { return q_state; }
@@ -249,14 +231,15 @@ public:
     void tick() override;
     void reset() override;
 
-    std::string getType() const override { return "TFlipFlop"; }
+    std::string getType() const override { return "CounterTFlipFlop"; }
+    void displayInfo() const override { printState(); }
     void printState() const override;
-    CircuitComponent* clone() const override { return new TFlipFlop(*this); }
+    CircuitComponent* clone() const override { return new CounterTFlipFlop(*this); }
 };
 
 class SynchronousCounter4Bit : public SequentialCircuit {
 private:
-    std::array<TFlipFlop, 4> ff;
+    std::array<CounterTFlipFlop, 4> ff;
     bool enable{true};
 
     friend class Debugger;
@@ -274,6 +257,7 @@ public:
     std::array<bool, 4> getStateBits() const;
 
     std::string getType() const override { return "SynchronousCounter4Bit"; }
+    void displayInfo() const override { printState(); }
     void printState() const override;
     CircuitComponent* clone() const override { return new SynchronousCounter4Bit(*this); }
 };
