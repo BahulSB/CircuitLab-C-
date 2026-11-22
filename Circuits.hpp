@@ -1,11 +1,15 @@
 #ifndef CIRCUITS_HPP
 #define CIRCUITS_HPP
 
-#include <iostream>
-#include <string>
+#include <array>
 #include <cstddef>
+#include <cstdint>
+#include <iostream>
+#include <map>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
-// Primitive logic gate blocks
 class AndGate {
 public:
     bool evaluate(bool a, bool b) const { return a && b; }
@@ -26,44 +30,78 @@ public:
     bool evaluate(bool a, bool b) const { return a != b; }
 };
 
-class Debugger; // Forward decl for direct wire probing
+class Debugger;
 
-// -------------------------------------------------------------
-// Composite Sub-Circuits
-// -------------------------------------------------------------
+class CircuitComponent {
+protected:
+    std::string label;
+    bool primary_output{false};
 
-// 1-Bit Half Adder composed of XOR and AND gates
-class HalfAdder {
+    friend class Debugger;
+
+public:
+    explicit CircuitComponent(const std::string& lbl = "Component")
+        : label(lbl), primary_output(false) {}
+
+    virtual ~CircuitComponent() = default;
+
+    virtual void evaluate() = 0;
+    virtual std::string getType() const = 0;
+    virtual void printState() const = 0;
+    virtual CircuitComponent* clone() const = 0;
+
+    std::string getLabel() const { return label; }
+    void setLabel(const std::string& lbl) { label = lbl; }
+    bool getPrimaryOutput() const { return primary_output; }
+};
+
+class HalfAdder : public CircuitComponent {
 private:
     XorGate xor_g;
     AndGate and_g;
 
-    // Internal probing lines
+    bool in_a{false};
+    bool in_b{false};
     bool wire_sum{false};
     bool wire_carry{false};
 
     friend class Debugger;
 
 public:
-    HalfAdder() = default;
+    explicit HalfAdder(const std::string& lbl = "HalfAdder")
+        : CircuitComponent(lbl) {}
+    ~HalfAdder() override = default;
 
-    void execute(bool in_a, bool in_b) {
-        wire_sum = xor_g.evaluate(in_a, in_b);
-        wire_carry = and_g.evaluate(in_a, in_b);
+    void setInputs(bool a, bool b) {
+        in_a = a;
+        in_b = b;
+    }
+
+    void evaluate() override;
+
+    void execute(bool a, bool b) {
+        setInputs(a, b);
+        evaluate();
     }
 
     bool getSum() const { return wire_sum; }
     bool getCarry() const { return wire_carry; }
+
+    std::string getType() const override { return "HalfAdder"; }
+    void printState() const override;
+    CircuitComponent* clone() const override { return new HalfAdder(*this); }
 };
 
-// 1-Bit Full Adder composed of 2 HalfAdders + 1 OR Gate
-class FullAdder {
+class FullAdder : public CircuitComponent {
 private:
     HalfAdder sub_ha1;
     HalfAdder sub_ha2;
     OrGate or_g;
 
-    // Internal wire states across stages
+    bool in_a{false};
+    bool in_b{false};
+    bool in_cin{false};
+
     bool stage1_sum{false};
     bool stage1_carry{false};
     bool stage2_carry{false};
@@ -73,172 +111,207 @@ private:
     friend class Debugger;
 
 public:
-    FullAdder() = default;
+    explicit FullAdder(const std::string& lbl = "FullAdder")
+        : CircuitComponent(lbl), sub_ha1(lbl + "_HA1"), sub_ha2(lbl + "_HA2") {}
+    ~FullAdder() override = default;
+
+    void setInputs(bool a, bool b, bool c_in) {
+        in_a = a;
+        in_b = b;
+        in_cin = c_in;
+    }
+
+    void evaluate() override;
 
     void execute(bool a, bool b, bool c_in) {
-        // Stage 1: Add input bits A & B
-        sub_ha1.execute(a, b);
-        stage1_sum = sub_ha1.getSum();
-        stage1_carry = sub_ha1.getCarry();
-
-        // Stage 2: Add stage 1 sum with carry-in
-        sub_ha2.execute(stage1_sum, c_in);
-        sum_out = sub_ha2.getSum();
-        stage2_carry = sub_ha2.getCarry();
-
-        // Stage 3: OR gate for final carry line
-        carry_out = or_g.evaluate(stage1_carry, stage2_carry);
+        setInputs(a, b, c_in);
+        evaluate();
     }
 
     bool getSum() const { return sum_out; }
     bool getCarry() const { return carry_out; }
+
+    std::string getType() const override { return "FullAdder"; }
+    void printState() const override;
+    CircuitComponent* clone() const override { return new FullAdder(*this); }
 };
 
-// 2-to-1 Multiplexer composed of NOT, AND, and OR gates
-class Mux2to1 {
+class Mux2to1 : public CircuitComponent {
 private:
     NotGate inv;
     AndGate and1, and2;
     OrGate out_or;
+
+    bool in_i0{false};
+    bool in_i1{false};
+    bool in_sel{false};
 
     bool sel_inv{false};
     bool branch0{false};
     bool branch1{false};
     bool result{false};
 
-public:
-    Mux2to1() = default;
+    friend class Debugger;
 
-    // Output line: Y = (I0 AND NOT S) OR (I1 AND S)
+public:
+    explicit Mux2to1(const std::string& lbl = "Mux2to1")
+        : CircuitComponent(lbl) {}
+    ~Mux2to1() override = default;
+
+    void setInputs(bool i0, bool i1, bool sel) {
+        in_i0 = i0;
+        in_i1 = i1;
+        in_sel = sel;
+    }
+
+    void evaluate() override;
+
     void execute(bool i0, bool i1, bool sel) {
-        sel_inv = inv.evaluate(sel);
-        branch0 = and1.evaluate(i0, sel_inv);
-        branch1 = and2.evaluate(i1, sel);
-        result = out_or.evaluate(branch0, branch1);
+        setInputs(i0, i1, sel);
+        evaluate();
     }
 
     bool getOutput() const { return result; }
+
+    std::string getType() const override { return "Mux2to1"; }
+    void printState() const override;
+    CircuitComponent* clone() const override { return new Mux2to1(*this); }
 };
 
-// -------------------------------------------------------------
-// Debugger Friend Class
-// -------------------------------------------------------------
+class RippleCarryAdderSubtractor4Bit : public CircuitComponent {
+private:
+    std::array<FullAdder, 4> adders;
+    std::array<XorGate, 4> b_xor_gates;
+
+    std::array<bool, 4> A{false, false, false, false};
+    std::array<bool, 4> B{false, false, false, false};
+    bool mode_m{false};
+
+    std::array<bool, 4> result{false, false, false, false};
+    bool carry_out{false};
+    bool overflow{false};
+
+    friend class Debugger;
+
+public:
+    explicit RippleCarryAdderSubtractor4Bit(const std::string& lbl = "RCA_Sub_4Bit");
+    ~RippleCarryAdderSubtractor4Bit() override = default;
+
+    void setInputs(const std::array<bool, 4>& inA, const std::array<bool, 4>& inB, bool m);
+    void setInputsFromInt(uint8_t valA, uint8_t valB, bool m);
+
+    void evaluate() override;
+
+    void execute(uint8_t valA, uint8_t valB, bool m) {
+        setInputsFromInt(valA, valB, m);
+        evaluate();
+    }
+
+    std::array<bool, 4> getResultBits() const { return result; }
+    uint8_t getResultValue() const;
+    bool getCarryOut() const { return carry_out; }
+    bool getOverflow() const { return overflow; }
+
+    std::string getType() const override { return "RippleCarryAdderSubtractor4Bit"; }
+    void printState() const override;
+    CircuitComponent* clone() const override { return new RippleCarryAdderSubtractor4Bit(*this); }
+};
+
+class SequentialCircuit : public CircuitComponent {
+protected:
+    bool reset_line{false};
+
+public:
+    explicit SequentialCircuit(const std::string& lbl = "SequentialCircuit")
+        : CircuitComponent(lbl) {}
+    ~SequentialCircuit() override = default;
+
+    virtual void tick() = 0;
+    virtual void reset() = 0;
+};
+
+class TFlipFlop : public SequentialCircuit {
+private:
+    bool t_in{false};
+    bool q_state{false};
+
+    friend class Debugger;
+
+public:
+    explicit TFlipFlop(const std::string& lbl = "TFlipFlop", bool toggle = false)
+        : SequentialCircuit(lbl), t_in(toggle), q_state(false) {}
+    ~TFlipFlop() override = default;
+
+    void setToggle(bool t) { t_in = t; }
+    bool getQ() const { return q_state; }
+
+    void evaluate() override;
+    void tick() override;
+    void reset() override;
+
+    std::string getType() const override { return "TFlipFlop"; }
+    void printState() const override;
+    CircuitComponent* clone() const override { return new TFlipFlop(*this); }
+};
+
+class SynchronousCounter4Bit : public SequentialCircuit {
+private:
+    std::array<TFlipFlop, 4> ff;
+    bool enable{true};
+
+    friend class Debugger;
+
+public:
+    explicit SynchronousCounter4Bit(const std::string& lbl = "SyncCounter4Bit", bool en = true);
+    ~SynchronousCounter4Bit() override = default;
+
+    void setEnable(bool en) { enable = en; }
+    void evaluate() override;
+    void tick() override;
+    void reset() override;
+
+    uint8_t getCount() const;
+    std::array<bool, 4> getStateBits() const;
+
+    std::string getType() const override { return "SynchronousCounter4Bit"; }
+    void printState() const override;
+    CircuitComponent* clone() const override { return new SynchronousCounter4Bit(*this); }
+};
+
 class Debugger {
 public:
-    static void probeHalfAdder(const HalfAdder& ha) {
-        std::cout << "  [Probe :: HalfAdder] Sum line: " << ha.wire_sum 
-                  << " | Carry line: " << ha.wire_carry << "\n";
-    }
-
-    static void probeFullAdder(const FullAdder& fa) {
-        std::cout << "  [Probe :: FullAdder] Stage1 Sum: " << fa.stage1_sum 
-                  << " | Stage1 Carry: " << fa.stage1_carry 
-                  << " | Stage2 Carry: " << fa.stage2_carry << "\n";
-    }
-};
-
-// -------------------------------------------------------------
-// Breadboard Dynamic Memory Container (No Polymorphism/Inheritance)
-// -------------------------------------------------------------
-enum class SlotKind { FULL_ADDER, MUX21 };
-
-struct BoardSlot {
-    SlotKind kind;
-    union {
-        FullAdder* fa;
-        Mux2to1* mux;
-    };
-
-    BoardSlot() : kind(SlotKind::FULL_ADDER), fa(nullptr) {}
-    BoardSlot(FullAdder* ptr) : kind(SlotKind::FULL_ADDER), fa(ptr) {}
-    BoardSlot(Mux2to1* ptr) : kind(SlotKind::MUX21), mux(ptr) {}
+    static void probeHalfAdder(const HalfAdder& ha);
+    static void probeFullAdder(const FullAdder& fa);
+    static void probeAdderSubtractor4Bit(const RippleCarryAdderSubtractor4Bit& alu);
+    static void probeCounter4Bit(const SynchronousCounter4Bit& counter);
+    static void inspectComponent(const CircuitComponent& comp);
 };
 
 class Breadboard {
 private:
-    BoardSlot* slots{nullptr};
-    std::size_t max_capacity{0};
-    std::size_t active_count{0};
+    std::vector<CircuitComponent*> components;
+    std::map<std::string, CircuitComponent*> component_map;
+    std::size_t auto_label_counter{0};
 
-    void reallocateStorage() {
-        std::size_t new_cap = (max_capacity == 0) ? 2 : max_capacity * 2;
-        auto* new_slots = new BoardSlot[new_cap];
-        for (std::size_t i = 0; i < active_count; ++i) {
-            new_slots[i] = slots[i];
-        }
-        delete[] slots;
-        slots = new_slots;
-        max_capacity = new_cap;
-    }
+    friend class Debugger;
 
 public:
-    explicit Breadboard(std::size_t init_cap = 2) 
-        : max_capacity(init_cap), active_count(0) {
-        slots = new BoardSlot[max_capacity];
-    }
+    explicit Breadboard(std::size_t reserve_cap = 4);
 
-    // Rule of Three: Destructor
-    ~Breadboard() {
-        freeComponents();
-        delete[] slots;
-    }
+    ~Breadboard();
+    Breadboard(const Breadboard& src);
+    Breadboard& operator=(const Breadboard& rhs);
 
-    // Rule of Three: Copy Constructor
-    Breadboard(const Breadboard& src) 
-        : max_capacity(src.max_capacity), active_count(src.active_count) {
-        slots = new BoardSlot[max_capacity];
-        for (std::size_t i = 0; i < active_count; ++i) {
-            if (src.slots[i].kind == SlotKind::FULL_ADDER) {
-                slots[i] = BoardSlot(new FullAdder(*src.slots[i].fa));
-            } else {
-                slots[i] = BoardSlot(new Mux2to1(*src.slots[i].mux));
-            }
-        }
-    }
+    void addComponent(CircuitComponent* comp);
+    void addComponent(const std::string& label, CircuitComponent* comp);
 
-    // Rule of Three: Copy Assignment Operator
-    Breadboard& operator=(const Breadboard& rhs) {
-        if (this != &rhs) {
-            freeComponents();
-            delete[] slots;
+    CircuitComponent* getComponent(const std::string& label) const;
 
-            max_capacity = rhs.max_capacity;
-            active_count = rhs.active_count;
-            slots = new BoardSlot[max_capacity];
-            for (std::size_t i = 0; i < active_count; ++i) {
-                if (rhs.slots[i].kind == SlotKind::FULL_ADDER) {
-                    slots[i] = BoardSlot(new FullAdder(*rhs.slots[i].fa));
-                } else {
-                    slots[i] = BoardSlot(new Mux2to1(*rhs.slots[i].mux));
-                }
-            }
-        }
-        return *this;
-    }
+    void simulateAll();
+    void freeComponents();
 
-    void addComponent(FullAdder* fa) {
-        if (active_count >= max_capacity) reallocateStorage();
-        slots[active_count++] = BoardSlot(fa);
-    }
-
-    void addComponent(Mux2to1* mux) {
-        if (active_count >= max_capacity) reallocateStorage();
-        slots[active_count++] = BoardSlot(mux);
-    }
-
-    void freeComponents() {
-        for (std::size_t i = 0; i < active_count; ++i) {
-            if (slots[i].kind == SlotKind::FULL_ADDER) {
-                delete slots[i].fa;
-            } else if (slots[i].kind == SlotKind::MUX21) {
-                delete slots[i].mux;
-            }
-        }
-        active_count = 0;
-    }
-
-    std::size_t getCount() const { return active_count; }
-    std::size_t getCapacity() const { return max_capacity; }
+    std::size_t getCount() const { return components.size(); }
+    std::size_t getCapacity() const { return components.capacity(); }
 };
 
-#endif // CIRCUITS_HPP
+#endif
