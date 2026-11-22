@@ -1,6 +1,3 @@
-Paste this entire clean `README.md` (without any citation tags inside it) into your `README.md` file:
-
-```markdown
 # CircuitLab-C++ v2.0: Interactive EDA Workstation & Digital Logic Simulator
 
 CircuitLab-C++ is a modular Electronic Design Automation (EDA) simulation suite built in modern C++. Designed around strict Object-Oriented Programming (OOP) principles, v2.0 unifies combinational circuits, sequential clocked flip-flops, arithmetic logic units (ALUs), polymorphic breadboard simulation, custom exception handling, and persistent File I/O across both an interactive CLI console and a Raylib-powered graphical workstation.
@@ -24,21 +21,14 @@ CircuitLab-C++ is a modular Electronic Design Automation (EDA) simulation suite 
 
 The simulator backend is decoupled from both the CLI and Raylib visualization frontends:
 
-
-```
-
-```
-                    [ CircuitComponent ]  (Abstract Base Class)
-                             │
-    ┌────────────────────────┼────────────────────────┬───────────────────────┐
-    ▼                        ▼                        ▼                       ▼
-
-```
-
-[ LogicGate ]           [ FlipFlop ]            [ Combinational ]       [ SequentialCircuit ]
-(AND/OR/XOR/NOT)       (D / JK / T FF)        (HalfAdder, FullAdder,     (SynchronousCounter4Bit,
-Mux2to1, 4-Bit ALU)        CounterTFlipFlop)
-
+```text
+                        [ CircuitComponent ]  (Abstract Base Class)
+                                 │
+        ┌────────────────────────┼────────────────────────┬───────────────────────┐
+        ▼                        ▼                        ▼                       ▼
+  [ LogicGate ]           [ FlipFlop ]            [ Combinational ]       [ SequentialCircuit ]
+ (AND/OR/XOR/NOT)       (D / JK / T FF)        (HalfAdder, FullAdder,     (SynchronousCounter4Bit,
+                                                Mux2to1, 4-Bit ALU)        CounterTFlipFlop)
 ```
 
 ### Core OOP Concepts Demonstrated
@@ -57,9 +47,7 @@ Mux2to1, 4-Bit ALU)        CounterTFlipFlop)
 
 ## Project Structure
 
-
-```
-
+```text
 CircuitLab-C-/
 ├── Component.hpp             # Abstract base class CircuitComponent
 ├── Exceptions.hpp            # CircuitException, FloatingWireException, ShortCircuitException, FileIOException
@@ -72,7 +60,6 @@ CircuitLab-C-/
 ├── gui_main.cpp              # Raylib-powered interactive EDA workstation
 ├── README.md                 # Project documentation
 └── .gitignore                # Git exclusions
-
 ```
 
 ---
@@ -88,9 +75,8 @@ CircuitLab-C-/
 ### 1. Clone the Repository
 
 ```cmd
-git clone [https://github.com/BahulSB/CircuitLab-C-.git](https://github.com/BahulSB/CircuitLab-C-.git)
+git clone https://github.com/BahulSB/CircuitLab-C-.git
 cd CircuitLab-C-
-
 ```
 
 ### 2. Build & Run the v2.0 Interactive CLI Console
@@ -98,7 +84,6 @@ cd CircuitLab-C-
 ```cmd
 g++ -std=c++14 -Wall -Wextra main.cpp Wire.cpp Gate.cpp FlipFlops.cpp Circuits.cpp -o circuitlab_cli.exe
 circuitlab_cli.exe
-
 ```
 
 ### 3. Build & Run the Raylib GUI Workstation (Optional)
@@ -106,7 +91,6 @@ circuitlab_cli.exe
 ```cmd
 g++ -std=c++17 gui_main.cpp Wire.cpp Gate.cpp Circuits.cpp -I"raylib-6.2_win32_mingw-w64\include" -L"raylib-6.2_win32_mingw-w64\lib" -lraylib -lopengl32 -lgdi32 -lwinmm -o circuitlab_workstation.exe
 circuitlab_workstation.exe
-
 ```
 
 ---
@@ -127,11 +111,8 @@ circuitlab_workstation.exe
 ### Raylib GUI Controls (`gui_main.cpp`)
 
 | Control | Action |
-| --- | --- |
+| :--- | :--- |
 | **Left Click on Input Switches** | Toggle pin logic levels between `0` (LOW) and `1` (HIGH) |
 | **`Full Adder` / `2:1 MUX` Tabs** | Switch between circuit schematic inspections |
 | **`Truth Table` Button** | Toggle full matrix synthesizer view with live row tracking |
 | **`Clock: ON / OFF`** | Start or pause the automated binary signal generator |
-
-```
-
